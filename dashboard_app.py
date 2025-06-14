@@ -6,6 +6,43 @@ import numpy as np
 from datetime import datetime, timedelta
 import bcrypt # For password hashing
 
+# --- DEBUGGING SECTION ---
+# This section helps verify file paths on deployment.
+# REMOVE THIS SECTION ONCE THE FILE NOT FOUND ERROR IS RESOLVED.
+st.markdown("## Debugging File Paths")
+try:
+    current_dir = os.getcwd()
+    st.write(f"Current working directory: `{current_dir}`")
+    files_in_dir = os.listdir(current_dir)
+    st.write("Files found in current directory:")
+    for f in files_in_dir:
+        st.write(f"- `{f}`")
+    
+    # Check specifically for WASAC file
+    if 'WASAC_kpi_data.csv' in files_in_dir:
+        st.success("✅ `WASAC_kpi_data.csv` found in the current directory!")
+    else:
+        st.error("❌ `WASAC_kpi_data.csv` NOT found in the current directory.")
+
+    # List files in the directory containing the script if it's different
+    script_dir = os.path.dirname(__file__)
+    if script_dir and script_dir != current_dir:
+        st.write(f"Script directory: `{script_dir}`")
+        files_in_script_dir = os.listdir(script_dir)
+        st.write("Files found in script directory:")
+        for f in files_in_script_dir:
+            st.write(f"- `{f}`")
+        if 'WASAC_kpi_data.csv' in files_in_script_dir:
+            st.success("✅ `WASAC_kpi_data.csv` found in the script directory!")
+        else:
+            st.error("❌ `WASAC_kpi_data.csv` NOT found in the script directory.")
+
+except Exception as e:
+    st.error(f"Error during file system debugging: {e}")
+st.markdown("---")
+# --- END DEBUGGING SECTION ---
+
+
 # --- Configuration and Data Loading ---
 
 # Define the companies and their corresponding CSV filenames
@@ -660,4 +697,3 @@ else: # --- Dashboard Content (Only visible if authenticated) ---
     st.markdown("- **User Authentication:** Add login capabilities for secure access control.")
     st.markdown("- **Alerting and Notifications:** Set up alerts for KPIs falling below targets or exceeding thresholds.")
     st.markdown("- **Custom Theming:** Use `.streamlit/config.toml` to fully customize the dashboard's colors, fonts, and overall aesthetics to match MINECOFIN's branding.")
-
