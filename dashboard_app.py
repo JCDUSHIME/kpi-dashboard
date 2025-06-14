@@ -6,43 +6,6 @@ import numpy as np
 from datetime import datetime, timedelta
 import bcrypt # For password hashing
 
-# --- DEBUGGING SECTION ---
-# This section helps verify file paths on deployment.
-# REMOVE THIS SECTION ONCE THE FILE NOT FOUND ERROR IS RESOLVED.
-st.markdown("## Debugging File Paths")
-try:
-    current_dir = os.getcwd()
-    st.write(f"Current working directory: `{current_dir}`")
-    files_in_dir = os.listdir(current_dir)
-    st.write("Files found in current directory:")
-    for f in files_in_dir:
-        st.write(f"- `{f}`")
-    
-    # Check specifically for WASAC file
-    if 'WASAC_kpi_data.csv' in files_in_dir:
-        st.success("✅ `WASAC_kpi_data.csv` found in the current directory!")
-    else:
-        st.error("❌ `WASAC_kpi_data.csv` NOT found in the current directory.")
-
-    # List files in the directory containing the script if it's different
-    script_dir = os.path.dirname(__file__)
-    if script_dir and script_dir != current_dir:
-        st.write(f"Script directory: `{script_dir}`")
-        files_in_script_dir = os.listdir(script_dir)
-        st.write("Files found in script directory:")
-        for f in files_in_script_dir:
-            st.write(f"- `{f}`")
-        if 'WASAC_kpi_data.csv' in files_in_script_dir:
-            st.success("✅ `WASAC_kpi_data.csv` found in the script directory!")
-        else:
-            st.error("❌ `WASAC_kpi_data.csv` NOT found in the script directory.")
-
-except Exception as e:
-    st.error(f"Error during file system debugging: {e}")
-st.markdown("---")
-# --- END DEBUGGING SECTION ---
-
-
 # --- Configuration and Data Loading ---
 
 # Define the companies and their corresponding CSV filenames
@@ -207,7 +170,8 @@ def format_currency_value(value):
 
 
 # --- Data Loading with Synthetic Regional Data Generation ---
-@st.cache_data # Cache the data loading for better performance
+# Added ttl=600 to force cache invalidation after 10 minutes
+@st.cache_data(ttl=600)
 def load_all_kpi_data():
     """
     Loads all generated KPI data from CSV files and adds synthetic governance data.
@@ -219,90 +183,98 @@ def load_all_kpi_data():
     current_year = datetime.now().year
     
     for company_name, filename in COMPANIES.items():
-        if os.path.exists(filename):
-            df = pd.read_csv(filename)
-            df['Date'] = pd.to_datetime(df['Date'])
-            
-            # Explicitly convert known numeric columns to numeric, coercing errors
-            # This list includes all KPIs that are expected to be numeric across all companies
-            numeric_cols = [
-                'Revenue', 'Expenses', 'EBITDA', 'Cost per MW Installed', 'Electricity Access Rate (%)',
-                'System Loss Rate (%)', 'Average Outage Duration (SAIDI)', 'Customer Complaints Resolution Time (days)',
-                'Billing Efficiency (%)', 'Collection Efficiency (%)', 'Number of New Connections (per quarter)',
-                'Operational Expenditure per kWh', 'Revenue per kWh Sold', 'New Generation Capacity Developed (MW)',
-                'Projects Delivered On-Time (%)', '% of Funds Disbursed (Capex)', 'Loan Absorption Rate (%)',
-                'Water Coverage Rate (%)', 'Non-Revenue Water (NRW %)', 'Average Water Outage Duration',
-                '% of Water Quality Tests Passed', 'Sewerage Network Coverage (%)', 'Asset Maintenance Compliance (%)',
-                'Bed Occupancy Rate (%)', 'Average Length of Stay (ALOS)', 'Mortality Rate', 'Patient Satisfaction Score',
-                'Outpatient Visits per Month', 'Insurance Claims Reimbursement Rate (%)', 'Stock Availability Rate (%)',
-                'Order Fulfillment Rate (%)', 'Cold Chain Compliance Rate (%)', '% of Expired Stock',
-                'Health Facility Satisfaction Score', 'Inventory Turnover Ratio'
-            ]
-            for col in numeric_cols:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors='coerce') # Convert to numeric, turn errors into NaN
-            
-            # Add synthetic governance data
-            if 'Date' in df.columns and not df.empty:
-                years_in_data = df['Date'].dt.year.unique()
-            else:
-                years_in_data = range(2020, current_year + 1) # Default years if no data yet
-
-            governance_data = []
-            for year in years_in_data:
-                board_completeness = np.clip(np.random.normal(95, 3), 80, 100)
-                audit_opinion = np.random.choice([1, 0], p=[0.9, 0.1]) # 1 for Clean, 0 for Qualified
-                internal_audit_score = np.clip(np.random.normal(80, 7), 60, 100)
+        file_path = os.path.join(os.getcwd(), filename) # Use full path for clarity and robustness
+        if os.path.exists(file_path):
+            try:
+                df = pd.read_csv(file_path)
+                df['Date'] = pd.to_datetime(df['Date'])
                 
-                governance_data.append({
-                    'Year': year,
-                    'Board Completeness (%)': board_completeness,
-                    'Audit Opinion': audit_opinion,
-                    'Internal Audit Score (%)': internal_audit_score
-                })
-            
-            governance_df = pd.DataFrame(governance_data)
-            governance_df['Year'] = governance_df['Year'].astype(int)
+                # Explicitly convert known numeric columns to numeric, coercing errors
+                numeric_cols = [
+                    'Revenue', 'Expenses', 'EBITDA', 'Cost per MW Installed', 'Electricity Access Rate (%)',
+                    'System Loss Rate (%)', 'Average Outage Duration (SAIDI)', 'Customer Complaints Resolution Time (days)',
+                    'Billing Efficiency (%)', 'Collection Efficiency (%)', 'Number of New Connections (per quarter)',
+                    'Operational Expenditure per kWh', 'Revenue per kWh Sold', 'New Generation Capacity Developed (MW)',
+                    'Projects Delivered On-Time (%)', '% of Funds Disbursed (Capex)', 'Loan Absorption Rate (%)',
+                    'Water Coverage Rate (%)', 'Non-Revenue Water (NRW %)', 'Average Water Outage Duration',
+                    '% of Water Quality Tests Passed', 'Sewerage Network Coverage (%)', 'Asset Maintenance Compliance (%)',
+                    'Bed Occupancy Rate (%)', 'Average Length of Stay (ALOS)', 'Mortality Rate', 'Patient Satisfaction Score',
+                    'Outpatient Visits per Month', 'Insurance Claims Reimbursement Rate (%)', 'Stock Availability Rate (%)',
+                    'Order Fulfillment Rate (%)', 'Cold Chain Compliance Rate (%)', '% of Expired Stock',
+                    'Health Facility Satisfaction Score', 'Inventory Turnover Ratio'
+                ]
+                for col in numeric_cols:
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors='coerce') # Convert to numeric, turn errors into NaN
+                
+                # Add synthetic governance data
+                if 'Date' in df.columns and not df.empty:
+                    years_in_data = df['Date'].dt.year.unique()
+                else:
+                    years_in_data = range(2020, current_year + 1) # Default years if no data yet
 
-            data_dict[company_name] = df
-            data_dict[f"{company_name}_Governance"] = governance_df
+                governance_data = []
+                for year in years_in_data:
+                    board_completeness = np.clip(np.random.normal(95, 3), 80, 100)
+                    audit_opinion = np.random.choice([1, 0], p=[0.9, 0.1]) # 1 for Clean, 0 for Qualified
+                    internal_audit_score = np.clip(np.random.normal(80, 7), 60, 100)
+                    
+                    governance_data.append({
+                        'Year': year,
+                        'Board Completeness (%)': board_completeness,
+                        'Audit Opinion': audit_opinion,
+                        'Internal Audit Score (%)': internal_audit_score
+                    })
+                
+                governance_df = pd.DataFrame(governance_data)
+                governance_df['Year'] = governance_df['Year'].astype(int)
 
-            # --- Synthetic Regional Data Generation ---
-            if company_name == "EUCL" and 'Region' not in df.columns:
-                regional_eucl_data = []
-                for date in df['Date'].unique():
-                    for region in regions:
-                        base_access = np.random.normal(70, 5) + (df[df['Date'] == date].index.values[0] / 60) * 20
-                        if region == 'Kigali City':
-                            access_rate = np.clip(base_access + np.random.normal(10, 2), 0, 100)
-                        else:
-                            access_rate = np.clip(base_access + np.random.normal(-5, 3), 0, 100)
-                        regional_eucl_data.append({'Date': date, 'Region': region, 'Electricity Access Rate (%)': access_rate})
-                data_dict[company_name + "_Regional_Access"] = pd.DataFrame(regional_eucl_data)
+                data_dict[company_name] = df
+                data_dict[f"{company_name}_Governance"] = governance_df
 
-            if company_name == "WASAC" and 'Region' not in df.columns:
-                regional_wasac_data = []
-                for date in df['Date'].unique():
-                    for region in regions:
-                        base_coverage = np.random.normal(60, 5) + (df[df['Date'] == date].index.values[0] / 60) * 15
-                        if region == 'Kigali City':
-                            coverage_rate = np.clip(base_coverage + np.random.normal(15, 3), 0, 100)
-                        else:
-                            coverage_rate = np.clip(base_coverage + np.random.normal(-10, 4), 0, 100)
-                        regional_wasac_data.append({'Date': date, 'Region': region, 'Water Coverage Rate (%)': coverage_rate})
-                data_dict[company_name + "_Regional_Coverage"] = pd.DataFrame(regional_wasac_data)
+                # --- Synthetic Regional Data Generation ---
+                if company_name == "EUCL" and 'Region' not in df.columns:
+                    regional_eucl_data = []
+                    for date in df['Date'].unique():
+                        for region in regions:
+                            base_access = np.random.normal(70, 5) + (df[df['Date'] == date].index.values[0] / 60) * 20
+                            if region == 'Kigali City':
+                                access_rate = np.clip(base_access + np.random.normal(10, 2), 0, 100)
+                            else:
+                                access_rate = np.clip(base_access + np.random.normal(-5, 3), 0, 100)
+                            regional_eucl_data.append({'Date': date, 'Region': region, 'Electricity Access Rate (%)': access_rate})
+                    data_dict[company_name + "_Regional_Access"] = pd.DataFrame(regional_eucl_data)
 
+                if company_name == "WASAC" and 'Region' not in df.columns:
+                    regional_wasac_data = []
+                    for date in df['Date'].unique():
+                        for region in regions:
+                            base_coverage = np.random.normal(60, 5) + (df[df['Date'] == date].index.values[0] / 60) * 15
+                            if region == 'Kigali City':
+                                coverage_rate = np.clip(base_coverage + np.random.normal(15, 3), 0, 100)
+                            else:
+                                coverage_rate = np.clip(base_coverage + np.random.normal(-10, 4), 0, 100)
+                            regional_wasac_data.append({'Date': date, 'Region': region, 'Water Coverage Rate (%)': coverage_rate})
+                    data_dict[company_name + "_Regional_Coverage"] = pd.DataFrame(regional_wasac_data)
+
+            except pd.errors.EmptyDataError:
+                st.warning(f"⚠️ Warning: Data file `{filename}` for {company_name} is empty. Skipping data for this company.")
+                data_dict[company_name] = pd.DataFrame() # Provide empty df
+                data_dict[f"{company_name}_Governance"] = pd.DataFrame() # Provide empty df
+            except Exception as e:
+                st.error(f"❌ Error reading `{filename}` for {company_name}: {e}. Please check the file's content. Skipping data for this company.")
+                data_dict[company_name] = pd.DataFrame() # Provide empty df
+                data_dict[f"{company_name}_Governance"] = pd.DataFrame() # Provide empty df
         else:
-            st.error(f"Error: Data file not found for {company_name} at {filename}. "
-                     "Please ensure the generate_kpi_data.py script has been run "
-                     "and the CSV files are in the same directory as this Streamlit app.")
-            return None
+            st.error(f"❌ Data file NOT FOUND for {company_name} at `{file_path}`. Please ensure it's uploaded to your GitHub repository in the same folder as dashboard_app.py.")
+            data_dict[company_name] = pd.DataFrame() # Ensure a DataFrame exists even if empty
+            data_dict[f"{company_name}_Governance"] = pd.DataFrame() # Ensure a DataFrame exists even if empty
     return data_dict
 
 # Load the data
 all_kpi_data = load_all_kpi_data()
 
-# Exit if data loading failed
+# Exit if data loading failed (e.g., if no files at all could be loaded)
 if all_kpi_data is None:
     st.stop()
 
